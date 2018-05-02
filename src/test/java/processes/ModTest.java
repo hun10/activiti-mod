@@ -2,6 +2,7 @@ package processes;
 
 import java.util.List;
 
+import org.activiti.engine.impl.cfg.StandaloneInMemProcessEngineConfiguration;
 import org.activiti.engine.task.Task;
 import org.activiti.engine.test.ActivitiRule;
 import org.activiti.engine.test.Deployment;
@@ -14,7 +15,10 @@ import static org.junit.Assert.assertThat;
 
 public class ModTest {
     @Rule
-    public final ActivitiRule activitiRule = new ActivitiRule();
+    public final ActivitiRule activitiRule = new ActivitiRule(
+            new StandaloneInMemProcessEngineConfiguration()
+                    .buildProcessEngine()
+    );
 
     @Test
     @Deployment(resources = "processes/sample.bpmn20.xml")
