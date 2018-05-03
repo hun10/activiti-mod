@@ -1,13 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" targetNamespace="">
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL"
+             xmlns:activiti="http://activiti.org/bpmn"
+             targetNamespace=""
+>
     <process id="sample">
         <startEvent id="startEvent"/>
 
-        <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="userTask"/>
+        <sequenceFlow id="flow1" sourceRef="startEvent" targetRef="serviceTask"/>
 
-        <userTask id="userTask"/>
+        <serviceTask id="serviceTask"
+                     activiti:async="true"
+                     activiti:class="urbanowicz.activiti.delegates.SampleDelegate"
+        />
 
-        <sequenceFlow id="flow2" sourceRef="userTask" targetRef="endEvent"/>
+        <sequenceFlow id="flow2" sourceRef="serviceTask" targetRef="endEvent"/>
 
         <endEvent id="endEvent"/>
     </process>
