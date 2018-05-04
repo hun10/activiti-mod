@@ -1,6 +1,7 @@
 package processes;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -10,6 +11,7 @@ import org.activiti.engine.impl.cfg.StandaloneInMemProcessEngineConfiguration;
 import org.activiti.engine.impl.persistence.entity.DeadLetterJobEntity;
 import org.activiti.engine.impl.persistence.entity.JobEntity;
 import org.activiti.engine.impl.persistence.entity.TaskEntity;
+import org.activiti.engine.impl.test.JobTestHelper;
 import org.activiti.engine.task.Task;
 import org.activiti.engine.test.ActivitiRule;
 import org.activiti.engine.test.Deployment;
@@ -29,7 +31,7 @@ public class ModTest {
     private final RetryStrategy retryStrategy = new RetryStrategy() {
         @Override
         public Optional<Duration> delayFor(JobEntity job, Throwable exception) {
-            return Optional.empty();
+            return Optional.of(Duration.ofSeconds(12 / job.getRetries()));
         }
 
         @Override
@@ -51,23 +53,29 @@ public class ModTest {
                     .setJobManager(new ModJobManager())
                     .setFailedJobCommandFactory(new ModFailedJobCommandFactory(retryStrategy))
                     .setAsyncExecutorNumberOfRetries(3)
+                    .setTypedEventListeners(Collections.singletonMap(
+                            ActivitiEventType.TASK_COMPLETED.name(),
+                            Collections.singletonList(new TaskEntityEventListener() {
+                                @Override
+                                protected void onTaskEntityEvent(TaskEntity taskEntity) {
+                                    String jobId = (String) taskEntity.getVariable("jobId");
+                                    activitiRule.getManagementService().moveDeadLetterJobToExecutableJob(jobId, 1);
+                                }
+                            })
+                    ))
                     .setAsyncExecutorActivate(true)
                     .buildProcessEngine()
     );
 
     @Test
     @Deployment(resources = "processes/sample.bpmn20.xml")
-    public void test() {
-        activitiRule.getRuntimeService().addEventListener(new TaskEntityEventListener() {
-            @Override
-            protected void onTaskEntityEvent(TaskEntity taskEntity) {
-                String jobId = (String) taskEntity.getVariable("jobId");
-                activitiRule.getManagementService().moveDeadLetterJobToExecutableJob(jobId, 1);
-            }
-        }, ActivitiEventType.TASK_COMPLETED);
-
+    public void test() throws InterruptedException {
         activitiRule.getRuntimeService()
                 .startProcessInstanceByKey("sample");
+
+        while (activitiRule.getTaskService().createTaskQuery().count() < 1) {
+            Thread.sleep(10000);
+        }
 
         List<Task> tasks = activitiRule.getTaskService()
                 .createTaskQuery()
@@ -77,5 +85,7 @@ public class ModTest {
 
         activitiRule.getTaskService()
                 .complete(tasks.get(0).getId());
+
+        JobTestHelper.waitForJobExecutorToProcessAllJobs(activitiRule, 10000, 10000);
     }
 }
